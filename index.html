@@ -64,7 +64,7 @@ async function loadCat(){
   const c=await sb.from("config").select("*").maybeSingle();if(c.data)cfg=c.data;
 }
 async function loadTab(){
-  if(tab==="ped"){const r=await sb.from("pedidos_numerados").select("*").order("criado",{ascending:false}).limit(40);ped=r.data||[]}
+  if(tab==="ped"){const r=await sb.from("pedidos_numerados").select("*").order("criado",{ascending:false}).limit(40);String(o.numero_dia).padStart(3,"0")||[]}
   if(tab==="cfg"){const r=await sb.from("perfis").select("*").order("nome");pf=r.data||[]}
 }
 async function render(){
@@ -109,7 +109,7 @@ document.addEventListener("click",async ev=>{
     const tr=$("#ctr")?.value,pg=pay==="Cartão"?"Cartão de "+$("#cc").value.toLowerCase():pay==="Dinheiro"?"Dinheiro"+(tr?" (troco para "+R(tr)+")":" (sem troco)"):"Pix";
     const itens=Object.entries(cart).filter(([k,n])=>n>0).map(([codigo,qtd])=>({codigo,qtd}));
     const r=await go(()=>sb.rpc("criar_pedido",{p_nome:fv.cn,p_tel:fv.ct,p_end:fv.ca,p_pag:pg,p_itens:itens}));
-    if(r){cart={};tab="cat";T("Pedido #"+r.data+" enviado! Aguarde a entrega.");await re()}
+    if(r){cart={};tab="cat";T("Pedido enviado com sucesso! Aguarde a entrega.");;await re()}
   }
   else if(a==="rf"){await re()}
   else if(a==="st"){if(await go(()=>sb.from("pedidos").update({status:b.dataset.n}).eq("id",c)))await re()}
