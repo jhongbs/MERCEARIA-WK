@@ -64,7 +64,7 @@ async function loadCat(){
   const c=await sb.from("config").select("*").maybeSingle();if(c.data)cfg=c.data;
 }
 async function loadTab(){
-  if(tab==="ped"){const r=await sb.from("pedidos_numerados").select("*").order("criado",{ascending:false}).limit(40);String(o.numero_dia).padStart(3,"0")||[]}
+  if(tab==="ped"){const r=await sb.from("pedidos_numerados").select("*").order("criado",{ascending:false}).limit(40);ped = r.data || [];
   if(tab==="cfg"){const r=await sb.from("perfis").select("*").order("nome");pf=r.data||[]}
 }
 async function render(){
