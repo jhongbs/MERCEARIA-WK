@@ -61,6 +61,7 @@ async function loadMe(){
 }
 async function loadCat(){
   const r=await sb.from(staff()?"produtos":"catalogo").select("*").order("nome");cat=r.data||[];
+  Object.keys(cart).forEach(k=>{const p=cat.find(x=>x.codigo===k);if(!p||!has(p))delete cart[k];else if(cart[k]>p.estoque)cart[k]=p.estoque});
   const c=await sb.from("config").select("*").maybeSingle();if(c.data)cfg=c.data;
 }
 async function loadTab(){
@@ -81,12 +82,12 @@ async function render(){
   const v=$("#v"),L=flt(),none=`<div class="msg">${cat.length?"Nada encontrado.":"Nenhum produto cadastrado."}</div>`;
   if(tab==="login"){v.innerHTML=`<div class="card"><label>Nome (só para criar conta)</label><input id="ln" autocomplete="name"><label>E-mail</label><input id="le" type="email" autocomplete="email"><label>Senha</label><input id="lp" type="password" autocomplete="current-password"><button class="gold" data-a="in">Entrar</button><button class="gold" style="background:#fff;color:#000" data-a="up">Criar conta de funcionário</button></div>`;return}
   if(me?.cargo==="pendente"&&tab==="cat")T("Sua conta aguarda liberação do ADM.");
-  if(tab==="cat")v.innerHTML=L.length?L.map(p=>`<div class="row ${has(p)?"":"out"}"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>cód. ${p.codigo}${has(p)?"":" · indisponível"}</small><span class="pr">${R(p.preco)}</span></div></div><div class="r">${has(p)&&!staff()?step(p.codigo):""}</div></div>`).join(""):none;
+  if(tab==="cat")v.innerHTML=L.length?L.map(p=>`<div class="row ${has(p)?"":"out"}"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>cód. ${p.codigo} · ${has(p)?p.estoque+" em estoque":"indisponível"}</small><span class="pr">${R(p.preco)}</span></div></div><div class="r">${has(p)&&!staff()?step(p.codigo):""}</div></div>`).join(""):none;
   if(tab==="cart"){
     const ci=Object.entries(cart).map(([c,n])=>[cat.find(x=>x.codigo===c),n]).filter(([p,n])=>p&&n>0),s=sub(),fee=ci.length?+cfg.taxa:0;
     v.innerHTML=ci.length?ci.map(([p])=>`<div class="row"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>${R(p.preco)} cada</small></div></div><div class="r">${step(p.codigo)}</div></div>`).join("")+`<div class="card"><div class="tot"><span>Produtos</span><span>${R(s)}</span></div><div class="tot"><span>Taxa de entrega</span><span>${R(fee)}</span></div><div class="tot"><b>Total</b><b class="pr">${R(s+fee)}</b></div></div><div class="card"><label>Seu nome</label><input id="cn" value="${E(fv.cn)}"><label>Telefone</label><input id="ct" inputmode="tel" value="${E(fv.ct)}"><label>Endereço de entrega</label><input id="ca" value="${E(fv.ca)}"><label>Pagamento na entrega</label><select id="cp" data-a="pay"><option ${pay==="Pix"?"selected":""}>Pix</option><option ${pay==="Cartão"?"selected":""}>Cartão</option><option ${pay==="Dinheiro"?"selected":""}>Dinheiro</option></select>${pay==="Cartão"?`<label>Crédito ou débito?</label><select id="cc"><option>Crédito</option><option>Débito</option></select>`:""}${pay==="Dinheiro"?`<label>Troco para quanto? (vazio = sem troco)</label><input id="ctr" type="number" min="0" inputmode="decimal">`:""}<button class="gold" data-a="send">Enviar pedido</button></div>`:`<div class="msg">Seu carrinho está vazio.</div>`;
   }
-  if(tab==="ped")v.innerHTML=`<button class="b gold" data-a="rf">Atualizar pedidos</button>`+(ped.length?ped.map(o=>`<div class="card"><b>#${o.id} · ${E(o.nome)}</b> <span class="tag">${E(o.status)}</span><small>${E(o.telefone)} · ${E(o.endereco)}</small>${(o.itens||[]).map(i=>`<div>${i.qtd}x ${E(i.nome)}</div>`).join("")}<div class="tot"><span>${E(o.pagamento)}</span><b class="pr">${R(o.total)}</b></div>${NX[o.status]?`<button class="b sm" style="height:36px" data-a="st" data-c="${o.id}" data-n="${NX[o.status]}">Marcar: ${NX[o.status]}</button>`:""}</div>`).join(""):`<div class="msg">Nenhum pedido ainda.</div>`);
+  if(tab==="ped")v.innerHTML=`<button class="b gold" data-a="rf">Atualizar pedidos</button>`+(ped.length?ped.map(o=>`<div class="card"><b>#${String(o.numero_dia??o.id).padStart(3,"0")} · ${E(o.nome)}</b> <span class="tag">${E(o.status)}</span><small>${E(o.telefone)} · ${E(o.endereco)}</small>${(o.itens||[]).map(i=>`<div>${i.qtd}x ${E(i.nome)}</div>`).join("")}<div class="tot"><span>${E(o.pagamento)}</span><b class="pr">${R(o.total)}</b></div>${NX[o.status]?`<button class="b sm" style="height:36px" data-a="st" data-c="${o.id}" data-n="${NX[o.status]}">Marcar: ${NX[o.status]}</button>`:""}</div>`).join(""):`<div class="msg">Nenhum pedido ainda.</div>`);
   if(tab==="est")v.innerHTML=L.length?L.map(p=>`<div class="row"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>cód. ${p.codigo}</small></div></div><div class="r"><button data-a="d" data-c="${p.codigo}" data-d="-1">−</button><b class="${p.estoque<=0?"low":""}" style="min-width:30px;text-align:center">${p.estoque}</b><button data-a="d" data-c="${p.codigo}" data-d="1">+</button><button class="sm" data-a="d" data-c="${p.codigo}" data-d="10">+10</button></div></div>`).join(""):none;
   if(tab==="adm")v.innerHTML=`<div class="card"><b>Produto</b><div class="g2"><div><label>Código (4 dígitos)</label><input id="fc" inputmode="numeric" maxlength="4"></div><div><label>Preço (R$)</label><input id="fp" type="number" step="0.01" min="0" inputmode="decimal"></div></div><label>Nome</label><input id="fn"><label>Quantidade em estoque</label><input id="fq" type="number" min="0" inputmode="numeric"><label>Foto (opcional)</label><input id="ff" type="file" accept="image/*"><button class="gold" data-a="save">Salvar produto</button></div>`+(L.map(p=>`<div class="row"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>cód. ${p.codigo} · ${R(p.preco)} · estoque ${p.estoque}</small></div></div><div class="r"><button data-a="ed" data-c="${p.codigo}">✎</button><button class="sm" data-a="del" data-c="${p.codigo}">${ask===p.codigo?"Confirmar?":"🗑"}</button></div></div>`).join(""));
   if(tab==="cfg")v.innerHTML=`<div class="card"><b>Entrega</b><div class="g2"><div><label>Taxa de entrega (R$)</label><input id="sf" type="number" step="0.01" min="0" value="${cfg.taxa}"></div><div><label>Pedido mínimo (R$)</label><input id="sm" type="number" step="0.01" min="0" value="${cfg.minimo}"></div></div><button class="gold" data-a="cfg">Salvar</button></div><div class="card"><b>Equipe</b>${pf.map(x=>`<div style="margin:10px 0"><b>${E(x.nome||"Sem nome")}</b> <span class="tag">${E(x.cargo)}</span><small>${E(x.email)}</small><div class="r" style="margin-top:6px">${["pendente","repositor","gerente","admin"].map(r=>`<button class="sm" style="height:32px" data-a="cg" data-c="${x.id}" data-r="${r}">${r}</button>`).join("")}</div></div>`).join("")}</div>`;
@@ -97,7 +98,7 @@ document.addEventListener("click",async ev=>{
   const b=ev.target.closest("button[data-a]");if(!b)return;const a=b.dataset.a,c=b.dataset.c;
   if(a==="t"){tab=c;await loadTab();render()}
   else if(a==="auth"){if(me){await sb.auth.signOut();location.reload()}else{tab="login";render()}}
-  else if(a==="p"){cart[c]=(cart[c]||0)+1;render()}
+  else if(a==="p"){const p=cat.find(x=>x.codigo===c);if(!p||(cart[c]||0)>=p.estoque){T("Só temos "+(p?p.estoque:0)+" em estoque.");return}cart[c]=(cart[c]||0)+1;render()}
   else if(a==="m"){cart[c]=Math.max(0,(cart[c]||0)-1);render()}
   else if(a==="in"||a==="up"){
     const e=$("#le").value.trim(),p=$("#lp").value;
@@ -109,7 +110,7 @@ document.addEventListener("click",async ev=>{
     const tr=$("#ctr")?.value,pg=pay==="Cartão"?"Cartão de "+$("#cc").value.toLowerCase():pay==="Dinheiro"?"Dinheiro"+(tr?" (troco para "+R(tr)+")":" (sem troco)"):"Pix";
     const itens=Object.entries(cart).filter(([k,n])=>n>0).map(([codigo,qtd])=>({codigo,qtd}));
     const r=await go(()=>sb.rpc("criar_pedido",{p_nome:fv.cn,p_tel:fv.ct,p_end:fv.ca,p_pag:pg,p_itens:itens}));
-    if(r){cart={};tab="cat";T("Pedido #"+r.data+" enviado! Aguarde a entrega.");await re()}
+    if(r){cart={};tab="cat";T("Pedido enviado com sucesso! Aguarde a entrega.");;await re()}
   }
   else if(a==="rf"){await re()}
   else if(a==="st"){if(await go(()=>sb.from("pedidos").update({status:b.dataset.n}).eq("id",c)))await re()}
