@@ -44,7 +44,8 @@ const CFG={url:"https://gdsnbkmsmtalkgcopirg.supabase.co",key:"sb_publishable_0y
 const sb=supabase.createClient(CFG.url,CFG.key);
 const $=s=>document.querySelector(s),R=v=>"R$ "+(+v||0).toFixed(2).replace(".",","),
 E=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let cat=[],cfg={taxa:0,minimo:0},cart={},me=null,tab="cat",ped=[],pf=[],ask="",pay="Pix",fv={};
+let cat=[],cfg={taxa:0,minimo:0},cart={},me=null,tab="cat",ped=[],pf=[],ask="",pay="Pix",fv={},ok=null,tr=null,tk=(()=>{try{return localStorage.getItem("wkc")||""}catch(e){return""}})();
+const SL={novo:"Pedido recebido",separando:"Em separação","em entrega":"Saiu para entrega",entregue:"Entregue"};
 const NX={novo:"separando",separando:"em entrega","em entrega":"entregue"};
 const staff=()=>!!me&&["repositor","gerente","admin"].includes(me.cargo),mgr=()=>!!me&&["gerente","admin"].includes(me.cargo),adm=()=>me?.cargo==="admin";
 const T=m=>{const t=$("#t");t.textContent=m;t.style.display="block";clearTimeout(T.h);T.h=setTimeout(()=>t.style.display="none",3500)};
@@ -64,7 +65,13 @@ async function loadCat(){
   Object.keys(cart).forEach(k=>{const p=cat.find(x=>x.codigo===k);if(!p||!has(p))delete cart[k];else if(cart[k]>p.estoque)cart[k]=p.estoque});
   const c=await sb.from("config").select("*").maybeSingle();if(c.data)cfg=c.data;
 }
+async function consulta(){
+  if(!tk){tr=null;return}
+  const r=await sb.rpc("acompanhar_pedido",{p_codigo:tk});tr=r.data||false;
+  try{localStorage.setItem("wkc",tk)}catch(e){}
+}
 async function loadTab(){
+  if(tab==="trk")await consulta();
   if(tab==="ped"){const r=await sb.from("pedidos").select("*").order("criado",{ascending:false}).limit(40);ped=r.data||[]}
   if(tab==="cfg"){const r=await sb.from("perfis").select("*").order("nome");pf=r.data||[]}
 }
@@ -74,9 +81,10 @@ async function render(){
   if(staff()){tb.push(["ped","Pedidos"],["est","Estoque"])}
   if(mgr())tb.push(["adm","Produtos+"]);
   if(adm())tb.push(["cfg","Admin"]);
-  if(!staff())tb.push(["cart","Carrinho"+(cartN()?" ("+cartN()+")":"")]);
+  if(!staff()){tb.push(["cart","Carrinho"+(cartN()?" ("+cartN()+")":"")]);tb.push(["trk","Acompanhar"])}
   if(!me&&tab!=="login")tb.push(["login","Funcionário"]);
-  if(!tb.some(t=>t[0]===tab)&&tab!=="login")tab="cat";
+  if(tab==="ok"&&!ok)tab="cat";
+  if(!tb.some(t=>t[0]===tab)&&tab!=="login"&&tab!=="ok")tab="cat";
   $("#tabs").innerHTML=tb.map(([k,l])=>`<button data-a="t" data-c="${k}" class="${k===tab?"on":""}">${l}</button>`).join("");
   $("#q").hidden=!["cat","est","adm"].includes(tab);
   const v=$("#v"),L=flt(),none=`<div class="msg">${cat.length?"Nada encontrado.":"Nenhum produto cadastrado."}</div>`;
@@ -87,10 +95,12 @@ async function render(){
     const ci=Object.entries(cart).map(([c,n])=>[cat.find(x=>x.codigo===c),n]).filter(([p,n])=>p&&n>0),s=sub(),fee=ci.length?+cfg.taxa:0;
     v.innerHTML=ci.length?ci.map(([p])=>`<div class="row"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>${R(p.preco)} cada</small></div></div><div class="r">${step(p.codigo)}</div></div>`).join("")+`<div class="card"><div class="tot"><span>Produtos</span><span>${R(s)}</span></div><div class="tot"><span>Taxa de entrega</span><span>${R(fee)}</span></div><div class="tot"><b>Total</b><b class="pr">${R(s+fee)}</b></div></div><div class="card"><label>Seu nome</label><input id="cn" value="${E(fv.cn)}"><label>Telefone</label><input id="ct" inputmode="tel" value="${E(fv.ct)}"><label>Endereço de entrega</label><input id="ca" value="${E(fv.ca)}"><label>Pagamento na entrega</label><select id="cp" data-a="pay"><option ${pay==="Pix"?"selected":""}>Pix</option><option ${pay==="Cartão"?"selected":""}>Cartão</option><option ${pay==="Dinheiro"?"selected":""}>Dinheiro</option></select>${pay==="Cartão"?`<label>Crédito ou débito?</label><select id="cc"><option>Crédito</option><option>Débito</option></select>`:""}${pay==="Dinheiro"?`<label>Troco para quanto? (vazio = sem troco)</label><input id="ctr" type="number" min="0" inputmode="decimal">`:""}<button class="gold" data-a="send">Enviar pedido</button></div>`:`<div class="msg">Seu carrinho está vazio.</div>`;
   }
-  if(tab==="ped")v.innerHTML=`<button class="b gold" data-a="rf">Atualizar pedidos</button>`+(ped.length?ped.map(o=>`<div class="card"><b>#${String(o.numero_dia??o.id).padStart(3,"0")} · ${E(o.nome)}</b> <span class="tag">${E(o.status)}</span><small>${E(o.telefone)} · ${E(o.endereco)}</small>${(o.itens||[]).map(i=>`<div>${i.qtd}x ${E(i.nome)}</div>`).join("")}<div class="tot"><span>${E(o.pagamento)}</span><b class="pr">${R(o.total)}</b></div>${NX[o.status]?`<button class="b sm" style="height:36px" data-a="st" data-c="${o.id}" data-n="${NX[o.status]}">Marcar: ${NX[o.status]}</button>`:""}</div>`).join(""):`<div class="msg">Nenhum pedido ainda.</div>`);
+  if(tab==="ok")v.innerHTML=`<div class="card" style="text-align:center"><b>Pedido #${ok.n} recebido!</b><div style="font-size:26px;font-weight:700;margin:8px 0;letter-spacing:.08em">${E(ok.c)}</div><small>Guarde este código para acompanhar o seu pedido.</small>${ok.wa?`<a class="gold" style="display:block;text-align:center;line-height:46px;text-decoration:none;border-radius:10px;margin:14px 0 0" target="_blank" rel="noopener" href="${E(ok.wa)}">Enviar pelo WhatsApp</a>`:""}<button class="gold" style="background:#fff;color:#000" data-a="track">Acompanhar pedido</button></div>`;
+  if(tab==="trk")v.innerHTML=`<div class="card"><label>Código do pedido</label><input id="tk" value="${E(tk)}" placeholder="Ex.: 007-K3F91" autocapitalize="characters"><button class="gold" data-a="cons">Consultar</button></div>`+(tr?`<div class="card"><b>Pedido #${String(tr.numero).padStart(3,"0")}</b> <span class="tag">${E(SL[tr.status]||tr.status)}</span><div style="margin:10px 0">${Object.keys(SL).map((k,i,a)=>`<div style="padding:3px 0;${i<=a.indexOf(tr.status)?"":"color:var(--mut)"}">${i<=a.indexOf(tr.status)?"✓":"○"} ${SL[k]}</div>`).join("")}</div>${(tr.itens||[]).map(i=>`<div>${i.qtd}x ${E(i.nome)}</div>`).join("")}<div class="tot"><span>${E(tr.pagamento)}</span><b class="pr">${R(tr.total)}</b></div></div>`:(tk&&tr===false?`<div class="msg">Pedido não encontrado. Confira o código.</div>`:""));
+  if(tab==="ped")v.innerHTML=`<button class="b gold" data-a="rf">Atualizar pedidos</button>`+(ped.length?ped.map(o=>`<div class="card"><b>#${String(o.numero_dia??o.id).padStart(3,"0")} · ${E(o.nome)}</b> <span class="tag">${E(o.status)}</span><small>código ${E(o.codigo)}</small><small>${E(o.telefone)} · ${E(o.endereco)}</small>${(o.itens||[]).map(i=>`<div>${i.qtd}x ${E(i.nome)}</div>`).join("")}<div class="tot"><span>${E(o.pagamento)}</span><b class="pr">${R(o.total)}</b></div>${NX[o.status]?`<button class="b sm" style="height:36px" data-a="st" data-c="${o.id}" data-n="${NX[o.status]}">Marcar: ${NX[o.status]}</button>`:""}</div>`).join(""):`<div class="msg">Nenhum pedido ainda.</div>`);
   if(tab==="est")v.innerHTML=L.length?L.map(p=>`<div class="row"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>cód. ${p.codigo}</small></div></div><div class="r"><button data-a="d" data-c="${p.codigo}" data-d="-1">−</button><b class="${p.estoque<=0?"low":""}" style="min-width:30px;text-align:center">${p.estoque}</b><button data-a="d" data-c="${p.codigo}" data-d="1">+</button><button class="sm" data-a="d" data-c="${p.codigo}" data-d="10">+10</button></div></div>`).join(""):none;
   if(tab==="adm")v.innerHTML=`<div class="card"><b>Produto</b><div class="g2"><div><label>Código (4 dígitos)</label><input id="fc" inputmode="numeric" maxlength="4"></div><div><label>Preço (R$)</label><input id="fp" type="number" step="0.01" min="0" inputmode="decimal"></div></div><label>Nome</label><input id="fn"><label>Quantidade em estoque</label><input id="fq" type="number" min="0" inputmode="numeric"><label>Foto (opcional)</label><input id="ff" type="file" accept="image/*"><button class="gold" data-a="save">Salvar produto</button></div>`+(L.map(p=>`<div class="row"><div class="l">${img(p)}<div><b>${E(p.nome)}</b><small>cód. ${p.codigo} · ${R(p.preco)} · estoque ${p.estoque}</small></div></div><div class="r"><button data-a="ed" data-c="${p.codigo}">✎</button><button class="sm" data-a="del" data-c="${p.codigo}">${ask===p.codigo?"Confirmar?":"🗑"}</button></div></div>`).join(""));
-  if(tab==="cfg")v.innerHTML=`<div class="card"><b>Entrega</b><div class="g2"><div><label>Taxa de entrega (R$)</label><input id="sf" type="number" step="0.01" min="0" value="${cfg.taxa}"></div><div><label>Pedido mínimo (R$)</label><input id="sm" type="number" step="0.01" min="0" value="${cfg.minimo}"></div></div><button class="gold" data-a="cfg">Salvar</button></div><div class="card"><b>Equipe</b>${pf.map(x=>`<div style="margin:10px 0"><b>${E(x.nome||"Sem nome")}</b> <span class="tag">${E(x.cargo)}</span><small>${E(x.email)}</small><div class="r" style="margin-top:6px">${["pendente","repositor","gerente","admin"].map(r=>`<button class="sm" style="height:32px" data-a="cg" data-c="${x.id}" data-r="${r}">${r}</button>`).join("")}</div></div>`).join("")}</div>`;
+  if(tab==="cfg")v.innerHTML=`<div class="card"><b>Entrega</b><div class="g2"><div><label>Taxa de entrega (R$)</label><input id="sf" type="number" step="0.01" min="0" value="${cfg.taxa}"></div><div><label>Pedido mínimo (R$)</label><input id="sm" type="number" step="0.01" min="0" value="${cfg.minimo}"></div></div><label>WhatsApp da loja (DDD + número)</label><input id="sw" inputmode="numeric" value="${E(cfg.whatsapp||"")}"><button class="gold" data-a="cfg">Salvar</button></div><div class="card"><b>Equipe</b>${pf.map(x=>`<div style="margin:10px 0"><b>${E(x.nome||"Sem nome")}</b> <span class="tag">${E(x.cargo)}</span><small>${E(x.email)}</small><div class="r" style="margin-top:6px">${["pendente","repositor","gerente","admin"].map(r=>`<button class="sm" style="height:32px" data-a="cg" data-c="${x.id}" data-r="${r}">${r}</button>`).join("")}</div></div>`).join("")}</div>`;
 }
 const rs=f=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const k=Math.min(1,500/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);c.toBlob(ok,"image/jpeg",.8)};i.onerror=no;i.src=URL.createObjectURL(f)});
 const re=async()=>{await loadCat();await loadTab();render()};
@@ -110,9 +120,16 @@ document.addEventListener("click",async ev=>{
     const tr=$("#ctr")?.value,pg=pay==="Cartão"?"Cartão de "+$("#cc").value.toLowerCase():pay==="Dinheiro"?"Dinheiro"+(tr?" (troco para "+R(tr)+")":" (sem troco)"):"Pix";
     const itens=Object.entries(cart).filter(([k,n])=>n>0).map(([codigo,qtd])=>({codigo,qtd}));
     const r=await go(()=>sb.rpc("criar_pedido",{p_nome:fv.cn,p_tel:fv.ct,p_end:fv.ca,p_pag:pg,p_itens:itens}));
-    if(r){cart={};tab="cat";T("Pedido enviado com sucesso! Aguarde a entrega.");;await re()}
+    if(r){const d=r.data,n3=String(d.numero).padStart(3,"0"),s=sub(),fee=+cfg.taxa||0,
+      its=Object.entries(cart).filter(([k,n])=>n>0).map(([k,n])=>{const p=cat.find(x=>x.codigo===k);return n+"x "+p.nome+" – "+R(p.preco*n)});
+      const txt=["*Pedido #"+n3+" – WK Mercearia*","Código de acompanhamento: *"+d.codigo+"*","Nome: "+fv.cn,"Telefone: "+fv.ct,"Endereço: "+fv.ca,"",...its,"","Produtos: "+R(s),"Entrega: "+R(fee),"*Total: "+R(s+fee)+"*","Pagamento: "+pg].join("\n");
+      const wa=cfg.whatsapp?"https://wa.me/55"+String(cfg.whatsapp).replace(/\D/g,"").replace(/^55/,"")+"?text="+encodeURIComponent(txt):"";
+      ok={n:n3,c:d.codigo,wa};tk=d.codigo;tr=null;try{localStorage.setItem("wkc",tk)}catch(e){}
+      cart={};tab="ok";await re();if(wa)window.open(wa,"_blank")}
   }
   else if(a==="rf"){await re()}
+  else if(a==="cons"){tk=$("#tk").value.trim().toUpperCase();await consulta();render()}
+  else if(a==="track"){tab="trk";await loadTab();render()}
   else if(a==="st"){if(await go(()=>sb.from("pedidos").update({status:b.dataset.n}).eq("id",c)))await re()}
   else if(a==="d"){if(await go(()=>sb.rpc("ajustar_estoque",{p_codigo:c,p_delta:+b.dataset.d})))await re()}
   else if(a==="ed"){const p=cat.find(x=>x.codigo===c);$("#fc").value=c;$("#fn").value=p.nome;$("#fp").value=p.preco;$("#fq").value=p.estoque;scrollTo({top:0,behavior:"smooth"})}
@@ -124,11 +141,11 @@ document.addEventListener("click",async ev=>{
     if(f){const nm=o.codigo+"-"+Date.now()+".jpg";if(!await go(async()=>sb.storage.from("fotos").upload(nm,await rs(f),{contentType:"image/jpeg"})))return;o.foto=nm}
     if(await go(()=>sb.from("produtos").upsert(o))){T("Produto salvo");await re()}
   }
-  else if(a==="cfg"){if(await go(()=>sb.from("config").update({taxa:+$("#sf").value||0,minimo:+$("#sm").value||0}).eq("id",1))){T("Salvo");await re()}}
+  else if(a==="cfg"){if(await go(()=>sb.from("config").update({taxa:+$("#sf").value||0,minimo:+$("#sm").value||0,whatsapp:$("#sw").value.replace(/\D/g,"")}).eq("id",1))){T("Salvo");await re()}}
   else if(a==="cg"){if(await go(()=>sb.from("perfis").update({cargo:b.dataset.r}).eq("id",c)))await re()}
 });
 document.addEventListener("change",e=>{if(e.target.dataset.a==="pay"){fv={cn:$("#cn").value,ct:$("#ct").value,ca:$("#ca").value};pay=e.target.value;render()}});
 $("#q").oninput=render;
-setInterval(()=>{if(tab==="ped"&&staff())re()},20000);
+setInterval(()=>{if(tab==="ped"&&staff())re();else if(tab==="trk"&&tr){const i=$("#tk");if(i)tk=i.value.trim().toUpperCase();re()}},20000);
 (async()=>{await loadMe();await loadCat();render()})();
 </script></body></html>
