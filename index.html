@@ -118,7 +118,7 @@ document.addEventListener("click",async ev=>{
   }
   else if(a==="send"){
     fv={cn:$("#cn").value,ct:$("#ct").value,ca:$("#ca").value};
-    const tr=$("#ctr")?.value,pg=pay==="Cartão"?"Cartão de "+$("#cc").value.toLowerCase():pay==="Dinheiro"?"Dinheiro"+(tr?" (troco para "+R(tr)+")":" (sem troco)"):"Pix";
+    const tro=$("#ctr")?.value,pg=pay==="Cartão"?"Cartão de "+$("#cc").value.toLowerCase():pay==="Dinheiro"?"Dinheiro"+(tro?" (troco para "+R(tro)+")":" (sem troco)"):"Pix";
     const itens=Object.entries(cart).filter(([k,n])=>n>0).map(([codigo,qtd])=>({codigo,qtd}));
     const r=await go(()=>sb.rpc("criar_pedido",{p_nome:fv.cn,p_tel:fv.ct,p_end:fv.ca,p_pag:pg,p_itens:itens}));
     if(r){const d=r.data&&typeof r.data==="object"?r.data:{numero:r.data,codigo:""},n3=String(d.numero??"").padStart(3,"0"),s=sub(),fee=+cfg.taxa||0,
